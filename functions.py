@@ -1,5 +1,5 @@
 from pybricks.ev3devices import Motor, GyroSensor, UltrasonicSensor
-from pybricks.parameters import Port, Stop, Direction, Speed
+from pybricks.parameters import Port, Stop, Direction
 from pybricks.tools import wait
 
 class Robot:
