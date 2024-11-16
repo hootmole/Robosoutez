@@ -7,8 +7,17 @@ from pybricks.tools import wait, StopWatch, DataLog
 from pybricks.robotics import DriveBase
 from pybricks.media.ev3dev import SoundFile, ImageFile
 
-
 import math
+
+
+
+def sigmoid(error, max_speed, agressivity):
+    """
+    sigmoid function for smooth speed correction handeling
+    """
+    return 2 * max_speed / (1 + math.e ** (-error * agressivity)) - max_speed
+
+
  
 class Robot:
     def __init__(self):
@@ -23,10 +32,14 @@ class Robot:
         self.ev3_brick = EV3Brick()
         self.speaker = self.ev3_brick.speaker
 
-        self.default_speed = 400
-        self.wanted_angle = 0
+        self.default_speed = 400 # staight movement speed
+        self.default_turn_speed = 100 # speed for turning
+        self.wanted_angle = 0 # angle that the gyro sensor should measure in any point of the robot movement, the robot is correcting for this angle
         self.wheel_diameter = 56
-       
+
+        self.turn_easing_threshold = 20 # the turn error after the robot starts slowing down for higher precision (deg)
+        self.straight_move_easing_threshold = 50 # the distance to object error after the robot starts slowing down for higher precision (mm)
+        
         # Reset gyro angle to 0 on initialization
         self.gyro.reset_angle(0)
         self.left_motor.reset_angle(0)
@@ -35,97 +48,77 @@ class Robot:
     def say(self, text):
         self.speaker.say(text)
     
-    def turn(self, added_angle, max_speed=100, kp=2.5, kd=0.5):
-        self.say("I'm turning" + str(added_angle))
+    def turn(self, added_angle, kp=2.5, aggresivity=0.2):
         """
-        Turn the robot to the constant angle coords
-        :param angle: Angle in degrees (positive for clockwise, negative for counterclockwise)
-        :param max_speed: Maximum turning speed in degrees per second
-        :param kp: Proportional gain
-        :param kd: Derivative gain
+        Turn the robot to the constant angle coordinates using non-linear deceleration.
+        :param added_angle: Angle to add to the current desired angle (in degrees).
+        :param kp: Proportional gain for the correction calculation.
+        :param threshold: Error threshold to start applying corrections.
+        :param k: Non-linear scaling factor for the correction.
         """
-        self.wanted_angle += added_angle
-        # self.wanted_angle = self.wanted_angle % 360 # mod the wanted angle to not cululate angles
-        last_error = 0
+        self.say("I'm turning " + str(added_angle))
 
+        # Update the desired angle
+        self.wanted_angle += added_angle
+        self.wanted_angle = self.wanted_angle % 360  # Modulus to keep angles manageable
+        
         while True:
-            print(self.gyro.angle(), self.wanted_angle)
-            # Calculate the error (how far we are from the target angle)
+            print("Current angle: " + str(self.gyro.angle()) + ", Target angle: " + str(self.wanted_angle))
+            
             error = self.wanted_angle - self.gyro.angle()
-            derivative = error - last_error
+
+            # if abs(error) > self.turn_easing_threshold:
+            #     correction = sigmoid(error, self.default_turn_speed, aggresivity) # slowing the robot based on sigmoind function for faster and smoother operations
+            # else:
+            #     correction = kp * error  # Linear response for small errors
+            correction = sigmoid(error, self.default_turn_speed, aggresivity) # slowing the robot based on sigmoind function for faster and smoother operations
+
             
-            # Calculate the control output using PD control
-            correction = kp * error + kd * derivative
-            correction = max(-max_speed, min(max_speed, correction))  # Clamp to max speed
+            # Clamp correction to motor speed limits
+            correction = max(-self.default_turn_speed, min(self.default_turn_speed, correction))
             
-            # Set motor speeds
             self.left_motor.run(correction)
             self.right_motor.run(-correction)
             
-            # Exit condition: when the error is small enough
-            if abs(error) < 1:  # Tolerance of 1 degree
+            if abs(error) < 1:
                 break
-            
-            last_error = error
-            wait(10)  # Small delay to avoid overloading the processor
 
-        # Stop motors once the target angle is reached
+            wait(10)  # Short delay for smooth operation
+            
         self.stop()
+
        
 
-    def drive_until_obstacle(self, distance_to_object, kp=1.5, correction_distance=50):
+    def drive_until_obstacle(self, distance_to_object, kp_gyro=5, kp_distance=1.0, aggressivity=0.05):
         """
-        Moves the robot straight toward a barrier and adjusts to the desired distance using ultrasonic feedback.
-        :param distance_to_object: Desired distance from the obstacle in mm
-        :param kp: Proportional gain for gyro correction
+        Moves the robot straight toward a barrier and adjusts to the desired distance using ultrasonic and gyro feedback.
+        :param distance_to_object: Desired distance from the obstacle in mm.
+        :param kp_gyro: Proportional gain for gyro correction.
+        :param kp_distance: Proportional gain for distance correction.
+        :param max_speed: Maximum speed for driving.
+        :param aggressivity: Aggressiveness for sigmoid smoothing.
         """
-
-        # Phase 1: Drive toward the obstacle
-        while True:
-            print(self.gyro.angle(), self.wanted_angle)
-
-            # Break if the target distance is reached
-            if self.us_sensor.distance() < distance_to_object + correction_distance:
-                print("LETS GO")
-                self.left_motor.stop()
-                self.right_motor.stop()
-                break
-
-
-            # Gyro correction
-            angle_error = self.gyro.angle() - self.wanted_angle
-            correction = kp * angle_error
-            # print("error: " + str(angle_error) + 
-            #     ", c: " + str(correction))
-
-            # Adjust motor speeds based on correction
-            self.left_motor.run(self.default_speed - correction)
-            self.right_motor.run(self.default_speed + correction)
-
-            wait(10)  # Small delay for smoother operation
-
-        # Phase 2: Fine-tune the distance
-        self.say("Just some minor finishing touches")
+        self.say("I'm going now!")
 
         while True:
-            self.speaker.beep()
-
-            # Measure the current distance to the obstacle
             current_distance = self.us_sensor.distance()
-            print("d: " + str(current_distance) + " mm")
-            error = current_distance - distance_to_object
-            print("de: " + str(error) + " mm")
+            distance_error = current_distance - distance_to_object
+            print("Current distance: " + str(current_distance) + " mm, Error: " + str(distance_error) + " mm")
 
             # Stop if within the acceptable range
-            if abs(error) <= 5:
+            if abs(distance_error) <= 5:
                 break
 
-            # Determine speed for fine-tuning
-            speed = max(-200, min(200, kp * error))  # Clamp speed for safety
-            print("Fine-tuning speed: " + str(speed))
+            # Calculate forward speed using sigmoid for distance error
+            forward_speed = sigmoid(distance_error, self.default_speed, aggressivity)
 
-            self.left_motor.run(speed)
-            self.right_motor.run(speed)
+            # Gyro correction for rotational alignment
+            angle_error = self.gyro.angle() - self.wanted_angle
+            correction = kp_gyro * angle_error
+            print("Angle error: " + str(angle_error) + ", Correction: " + str(correction))
+
+            self.left_motor.run(forward_speed - correction)
+            self.right_motor.run(forward_speed + correction)
 
             wait(10)
 
@@ -165,5 +158,4 @@ while not robot.button.pressed():
     print("going until 100")
     robot.turn(180)
     print("turning 180")
-
 
