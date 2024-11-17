@@ -72,8 +72,6 @@ class Robot:
             # else:
             #     correction = kp * error  # Linear response for small errors
             correction = sigmoid(error, self.default_turn_speed, aggresivity) # slowing the robot based on sigmoind function for faster and smoother operations
-
-            
             # Clamp correction to motor speed limits
             correction = max(-self.default_turn_speed, min(self.default_turn_speed, correction))
             
@@ -89,7 +87,7 @@ class Robot:
 
        
 
-    def drive_until_obstacle(self, distance_to_object, kp_gyro=5, kp_distance=1.0, aggressivity=0.05):
+    def drive_until_obstacle(self, distance_to_object, kp_gyro=5, ki_gyro=0.5, aggressivity=0.05):
         """
         Moves the robot straight toward a barrier and adjusts to the desired distance using ultrasonic and gyro feedback.
         :param distance_to_object: Desired distance from the obstacle in mm.
@@ -100,9 +98,11 @@ class Robot:
         """
         self.say("I'm going now!")
 
+        angle_error_integral = 0 # sum all angle errors to approximate it's integral
         while True:
             current_distance = self.us_sensor.distance()
             distance_error = current_distance - distance_to_object
+            
             print("Current distance: " + str(current_distance) + " mm, Error: " + str(distance_error) + " mm")
 
             # Stop if within the acceptable range
@@ -114,7 +114,8 @@ class Robot:
 
             # Gyro correction for rotational alignment
             angle_error = self.gyro.angle() - self.wanted_angle
-            correction = kp_gyro * angle_error
+            angle_error_integral += angle_error
+            correction = kp_gyro * angle_error + ki_gyro * angle_error_integral
             print("Angle error: " + str(angle_error) + ", Correction: " + str(correction))
 
             self.left_motor.run(forward_speed - correction)
