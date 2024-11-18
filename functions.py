@@ -1,209 +1,169 @@
 #!/usr/bin/env pybricks-micropython
-from pybricks.ev3devices import Motor, GyroSensor, UltrasonicSensor, TouchSensor
-from pybricks.parameters import Port, Stop, Direction
-from pybricks.tools import wait
- 
-class Robot:
-    def __init__(self):
-        # Initialize motors and sensors
-        self.left_motor = Motor(Port.A)
-        self.right_motor = Motor(Port.B)
-        self.gyro = GyroSensor(Port.S2)
-        self.us_sensor = UltrasonicSensor(Port.S3)
-        self.button = TouchSensor(Port.S1)
-        self.belt_motor = Motor(Port.C)
-       
-        # Reset gyro angle to 0 on initialization
-        self.gyro.reset_angle(0)
-        self.left_motor.reset_angle(0)
-        self.right_motor.reset_angle(0)
-       
-#!/usr/bin/env pybricks-micropython
-from pybricks.ev3devices import Motor, GyroSensor, UltrasonicSensor, TouchSensor
-from pybricks.parameters import Port, Stop, Direction
-from pybricks.tools import wait
- 
-class Robot:
-    def __init__(self):
-        # Initialize motors and sensors
-        self.left_motor = Motor(Port.A)
-        self.right_motor = Motor(Port.B)
-        self.gyro = GyroSensor(Port.S2)
-        self.us_sensor = UltrasonicSensor(Port.S3)
-        self.button = TouchSensor(Port.S1)
-        self.belt_motor = Motor(Port.C)
-       
-        # Reset gyro angle to 0 on initialization
-        self.gyro.reset_angle(0)
-        self.left_motor.reset_angle(0)
-        self.right_motor.reset_angle(0)
-       
-    def turn(self, angle, max_speed=100, kp=2.0, kd=0.5):
-        """
-        Turns the robot by a specified angle using the gyro sensor with PD control (no integral term).
-        :param angle: Angle in degrees (positive for clockwise, negative for counterclockwise)
-        :param max_speed: Maximum turning speed in degrees per second
-        :param kp: Proportional gain
-        :param kd: Derivative gain
-        """
-        target_angle = self.gyro.angle() + angle
-        last_error = 0
+from pybricks.hubs import EV3Brick
+from pybricks.ev3devices import (Motor, TouchSensor, ColorSensor,
+InfraredSensor, UltrasonicSensor, GyroSensor)
+from pybricks.parameters import Port, Stop, Direction, Button, Color
+from pybricks.tools import wait, StopWatch, DataLog
+from pybricks.robotics import DriveBase
+from pybricks.media.ev3dev import SoundFile, ImageFile
 
+import math
+
+def sigmoid(error, max_speed, agressivity):
+    """
+    sigmoid function for smooth speed correction handeling
+    """
+    return 2 * max_speed / (1 + math.e ** (-error * agressivity)) - max_speed
+
+ 
+class Robot:
+    def __init__(self, button_start):
+        # Initialize motors and sensors
+        self.left_motor = Motor(Port.A)
+        self.right_motor = Motor(Port.B)
+        
+        self.button = TouchSensor(Port.S1)
+        self.belt_motor = Motor(Port.C)
+        
+        self.ev3_brick = EV3Brick()
+        self.speaker = self.ev3_brick.speaker
+
+        self.default_speed = 400
+        self.default_turn_speed = 150
+        self.wanted_angle = 0
+        self.wheel_diameter = 56
+
+        # wait until button is pressed if desired
+        while (not self.button.pressed()) and button_start:
+            wait(10)
+        self.say("Alright, I'm going now!")
+        # Drift fix
         while True:
-            # Calculate the error (how far we are from the target angle)
-            error = target_angle - self.gyro.angle()
-            derivative = error - last_error
+            self.gyro = GyroSensor(Port.S2)
+            wait(100)
+            if self.gyro.speed() == 0:
+                break
+            self.gyro.reset_angle(0)
+       
+        # Reset gyro angle to 0 on initialization
+        self.gyro.reset_angle(0)
+        self.left_motor.reset_angle(0)
+        self.right_motor.reset_angle(0)
+
+        self.us_sensor = UltrasonicSensor(Port.S3)
+
+
+    def say(self, text):
+        self.speaker.say(text)
+    
+    def turn(self, added_angle, kp=2.5, aggresivity=0.2):
+        """
+        Turn the robot to the constant angle coordinates using non-linear deceleration.
+        :param added_angle: Angle to add to the current desired angle (in degrees).
+        :param kp: Proportional gain for the correction calculation.
+        :param threshold: Error threshold to start applying corrections.
+        :param k: Non-linear scaling factor for the correction.
+        """
+        self.say("I'm turning " + str(added_angle))
+
+        # Update the desired angle
+        self.wanted_angle += added_angle
+        self.wanted_angle = self.wanted_angle % 360  # Modulus to keep angles manageable
+        
+        while True:
+            print("Current angle: " + str(self.gyro.angle()) + ", Target angle: " + str(self.wanted_angle))
             
-            # Calculate the control output using PD control
-            correction = kp * error + kd * derivative
-            correction = max(-max_speed, min(max_speed, correction))  # Clamp to max speed
+            error = self.wanted_angle - self.gyro.angle()
+
+            # if abs(error) > self.turn_easing_threshold:
+            #     correction = sigmoid(error, self.default_turn_speed, aggresivity) # slowing the robot based on sigmoind function for faster and smoother operations
+            # else:
+            #     correction = kp * error  # Linear response for small errors
+            correction = sigmoid(error, self.default_turn_speed, aggresivity) # slowing the robot based on sigmoind function for faster and smoother operations
+            # Clamp correction to motor speed limits
+            correction = max(-self.default_turn_speed, min(self.default_turn_speed, correction))
             
-            # Set motor speeds
             self.left_motor.run(correction)
             self.right_motor.run(-correction)
             
-            # Exit condition: when the error is small enough
-            if abs(error) < 1:  # Tolerance of 1 degree
+            if abs(error) < 1:
                 break
-            
-            last_error = error
-            wait(10)  # Small delay to avoid overloading the processor
 
-        # Stop motors once the target angle is reached
+            wait(10)  # Short delay for smooth operation
+            
         self.stop()
+
        
-    def go_straight(self, distance, speed=200):
+
+    def drive_until_obstacle(self, distance_to_object, kp_gyro=1, ki_gyro=0.1, aggressivity=0.05):
         """
-        Moves the robot straight for a specified distance.
-        :param distance: Distance in degrees of wheel rotation
-        :param speed: Speed in degrees per second
+        Moves the robot straight toward a barrier and adjusts to the desired distance using ultrasonic and gyro feedback.
+        :param distance_to_object: Desired distance from the obstacle in mm.
+        :param kp_gyro: Proportional gain for gyro correction.
+        :param kp_distance: Proportional gain for distance correction.
+        :param max_speed: Maximum speed for driving.
+        :param aggressivity: Aggressiveness for sigmoid smoothing.
         """
-        # Reset motor positions
-        self.left_motor.reset_angle(0)
-        self.right_motor.reset_angle(0)
-       
-        # Run both motors to the target position
-        self.left_motor.run_target(speed, distance, Stop.COAST, wait=False)
-        self.right_motor.run_target(speed, distance, Stop.COAST)
-   
-    def stop(self):
-        """
-        Stops both motors immediately.
-        """
-        self.left_motor.stop(Stop.BRAKE)
-        self.right_motor.stop(Stop.BRAKE)
- 
-    def drive_until_obstacle(self, speed=200, distance=200):
-        """
-        Moves forward until an obstacle is detected within a certain distance.
-        :param speed: Speed in degrees per second
-        :param distance: Distance to obstacle in mm
-        """
-        # Move forward until an obstacle is detected within the specified distance
-        self.left_motor.run(speed)
-        self.right_motor.run(speed)
-       
-        while self.us_sensor.distance() > distance:
+        self.say("I'm going now!")
+
+        angle_error_integral = 0 # sum all angle errors to approximate it's integral
+        while True:
+            current_distance = self.us_sensor.distance()
+            distance_error = current_distance - distance_to_object
+            
+            print("Current distance: " + str(current_distance) + " mm, Error: " + str(distance_error) + " mm")
+
+            # Stop if within the acceptable range
+            if abs(distance_error) <= 5:
+                break
+
+            # Calculate forward speed using sigmoid for distance error
+            forward_speed = sigmoid(distance_error, self.default_speed, aggressivity)
+
+            # Gyro correction for rotational alignment
+            angle_error = self.gyro.angle() - self.wanted_angle
+            angle_error_integral += angle_error
+            correction = kp_gyro * angle_error + ki_gyro * angle_error_integral
+            print("Angle error: " + str(angle_error) + ", Correction: " + str(correction))
+
+            self.left_motor.run(forward_speed - correction)
+            self.right_motor.run(forward_speed + correction)
+
             wait(10)
-       
-        # Stop when an obstacle is detected
+
+        # Stop the robot at the final position
         self.stop()
- 
-    def turn_to_angle(self, target_angle, speed=100):
-        """
-        Turns the robot to face a specific angle (relative to the initial reset angle).
-        :param target_angle: Absolute target angle relative to the initial reset
-        :param speed: Turning speed in degrees per second
-        """
-        current_angle = self.gyro.angle()
-        angle_to_turn = target_angle - current_angle
-        self.turn(angle_to_turn, speed)
- 
+
+
     def wait_until_pressed(self):
         while not self.button.pressed():
             wait(10)
- 
+        self.say("Alright, I'm going now!")
+
     def collect(self, run, speed=1000):
         if run:
             self.belt_motor.run(speed)
         else:
             self.belt_motor.stop()
- 
- 
-# Example usage
-robot = Robot()
-robot.collect(1)
-robot.wait_until_pressed()
-robot.turn(90)               # Turn 90 degrees clockwise
-robot.go_straight(720)       # Go straight for 720 degrees of wheel rotation
-# robot.drive_until_obstacle() # Move forward until an obstacle is detected within 200 mm
-robot.turn_to_angle(180)     # Turn to face 180 degrees
- 
-       
-    def go_straight(self, distance, speed=200):
-        """
-        Moves the robot straight for a specified distance.
-        :param distance: Distance in degrees of wheel rotation
-        :param speed: Speed in degrees per second
-        """
-        # Reset motor positions
-        self.left_motor.reset_angle(0)
-        self.right_motor.reset_angle(0)
-       
-        # Run both motors to the target position
-        self.left_motor.run_target(speed, distance, Stop.COAST, wait=False)
-        self.right_motor.run_target(speed, distance, Stop.COAST)
-   
+
+
     def stop(self):
-        """
-        Stops both motors immediately.
-        """
-        self.left_motor.stop(Stop.BRAKE)
-        self.right_motor.stop(Stop.BRAKE)
- 
-    def drive_until_obstacle(self, speed=200, distance=200):
-        """
-        Moves forward until an obstacle is detected within a certain distance.
-        :param speed: Speed in degrees per second
-        :param distance: Distance to obstacle in mm
-        """
-        # Move forward until an obstacle is detected within the specified distance
-        self.left_motor.run(speed)
-        self.right_motor.run(speed)
-       
-        while self.us_sensor.distance() > distance:
-            wait(10)
-       
-        # Stop when an obstacle is detected
-        self.stop()
- 
-    def turn_to_angle(self, target_angle, speed=100):
-        """
-        Turns the robot to face a specific angle (relative to the initial reset angle).
-        :param target_angle: Absolute target angle relative to the initial reset
-        :param speed: Turning speed in degrees per second
-        """
-        current_angle = self.gyro.angle()
-        angle_to_turn = target_angle - current_angle
-        self.turn(angle_to_turn, speed)
- 
-    def wait_until_pressed(self):
-        while not self.button.pressed():
-            wait(10)
- 
-    def collect(self, run, speed=1000):
-        if run:
-            self.belt_motor.run(speed)
-        else:
-            self.belt_motor.stop()
+        self.left_motor.stop()
+        self.right_motor.stop()
  
  
-# Example usage
-robot = Robot()
+
+kratkazed=130
+
+robot = Robot(button_start=1)
 robot.collect(1)
-robot.wait_until_pressed()
-robot.turn(90)               # Turn 90 degrees clockwise
-robot.go_straight(720)       # Go straight for 720 degrees of wheel rotation
-# robot.drive_until_obstacle() # Move forward until an obstacle is detected within 200 mm
-robot.turn_to_angle(180)     # Turn to face 180 degrees
- 
+while 1:
+    robot.drive_until_obstacle(300)
+    print("going until 300")
+    robot.turn(-180)
+    print("turning -180")
+    robot.drive_until_obstacle(100)
+    print("going until 100")
+    robot.turn(180)
+    print("turning 180")
+
