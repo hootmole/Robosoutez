@@ -30,13 +30,13 @@ class Robot:
         self.ev3_brick = EV3Brick()
         self.speaker = self.ev3_brick.speaker
 
-        self.default_speed = 800
+        self.default_speed = 800 # mm/s
         self.default_turn_speed = 500
         self.wanted_angle = 0
-        self.wheel_diameter = 56
-        self.axle_track = 120
-        self.us_sensor_to_wheelbase_dist = 100
-        self.belt_tube_dist = 215
+        self.wheel_diameter = 56 # mm
+        self.axle_track = 120 # mm
+        self.us_sensor_to_wheelbase_dist = 100 # mm
+        self.belt_tube_dist = 215 # mm
 
         self.drive_base = DriveBase(self.left_motor, self.right_motor, self.wheel_diameter, self.axle_track)
         self.drive_base.settings(self.default_speed, straight_acceleration=self.default_speed * 2, 
@@ -121,7 +121,8 @@ class Robot:
         angle_error_integral = 0 # sum all angle errors to approximate it's integral
         while True:
             current_distance = self.us_sensor.distance()
-            distance_error = current_distance - distance_to_object
+            # calculate the distance error, adjusted for displacement of the us sensor from wheelbase
+            distance_error = current_distance - distance_to_object + self.us_sensor_to_wheelbase_dist
 
             # Stop if within the acceptable range
             if abs(distance_error) <= 5:
@@ -138,12 +139,12 @@ class Robot:
             correction = correction * (self.default_speed / forward_speed) # scale down the correction when robot is moving slower
             # self.left_motor.run(forward_speed - correction)
             # self.right_motor.run(forward_speed + correction)
-            self.drive_base.drive(forward_speed, correction)
+            self.drive_base.drive(forward_speed, -correction)
 
             wait(10)
 
         # Stop the robot at the final position
-        self.drive_base.stop()
+        self.drive_base.brake()
 
     def collect(self, run, speed=1000):
         """
@@ -153,8 +154,8 @@ class Robot:
         """
         if run:
             # Calculate belt speed
-            belt_speed = self.default_speed / self.wheel_diameter
-            self.belt_motor.run(belt_speed)
+            belt_angular_velocity = self.default_speed / self.wheel_diameter * (180 / math.pi) # deg/s
+            self.belt_motor.run(belt_angular_velocity)
         else:
             self.belt_motor.stop()
 
