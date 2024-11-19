@@ -118,7 +118,7 @@ class Robot:
 
        
 
-    def drive_until_obstacle(self, distance_to_object, kp_gyro=1, ki_gyro=0.0, aggressivity=0.02):
+    def drive_until_obstacle(self, distance_to_object, kp_gyro=1, ki_gyro=0.0, aggressivity=0.01):
         """
         Moves the robot straight toward a barrier and adjusts to the desired distance using ultrasonic and gyro feedback.
         :param distance_to_object: Desired distance from the obstacle in mm.
@@ -155,7 +155,7 @@ class Robot:
             wait(10)
 
         # Stop the robot at the final position
-        self.drive_base.brake()
+        self.drive_base.stop()
 
     def collect(self, run, speed=1000):
         """
@@ -175,7 +175,7 @@ class Robot:
         self.left_motor.stop()
         self.right_motor.stop()
 
-    def drive(self, drive_distance, kp_gyro=1, ki_gyro = 0.0, aggressivity=0.02):
+    def drive(self, drive_distance, kp_gyro=1, ki_gyro = 0.0, aggressivity=0.01):
         self.drive_base.reset()
 
         angle_error_integral = 0
