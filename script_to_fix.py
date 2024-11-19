@@ -18,7 +18,7 @@ def sigmoid(error, max_speed, agressivity):
 
  
 class Robot:
-    def __init__(self, button_start):
+    def __init__(self, button_start, drift_fix):
         # Initialize motors and sensors
         self.left_motor = Motor(Port.A)
         self.right_motor = Motor(Port.B)
@@ -47,18 +47,29 @@ class Robot:
             wait(10)
         self.say("I'm just getting started sir")
         # Drift fix
-        while True:
-            self.speaker.beep()
-            AnalogSensor(Port.S2)
-            self.speaker.beep()
-            wait(100)
+        if drift_fix == 2:
+            while True:
+                self.speaker.beep()
+                AnalogSensor(Port.S2)
+                self.speaker.beep()
+                wait(100)
+                self.gyro = GyroSensor(Port.S2)
+                self.speaker.beep()
+                
+                if self.gyro.speed() == 0:
+                    break
+                self.gyro.reset_angle(0)
+                self.speaker.beep()
+
+        if drift_fix == 1:
             self.gyro = GyroSensor(Port.S2)
-            self.speaker.beep()
-            
-            if self.gyro.speed() == 0:
-                break
-            self.gyro.reset_angle(0)
-            self.speaker.beep()
+            while True:
+                self.gyro.speed()
+                self.gyro.angle()
+                self.speaker.beep()
+                if self.gyro.speed() == 0:
+                    break
+                wait(100)
        
         # Reset gyro angle to 0 on initialization
         self.gyro.reset_angle(0)
@@ -199,7 +210,7 @@ class Robot:
 
 kratkazed=130
 
-robot = Robot(button_start=1)
+robot = Robot(button_start=1, drift_fix=1)
 robot.collect(1)
 while 1:
     robot.drive_until_obstacle(300)
