@@ -187,7 +187,7 @@ class Robot:
             correction = correction * (self.default_speed / forward_speed) # scale down the correction when robot is moving slower
             # self.left_motor.run(forward_speed - correction)
             # self.right_motor.run(forward_speed + correction)
-            self.drive_base.drive(forward_speed, correction)
+            self.drive_base.drive(forward_speed, -correction)
 
             wait(10)
 
