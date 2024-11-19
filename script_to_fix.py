@@ -133,7 +133,7 @@ class Robot:
         while True:
             current_distance = self.us_sensor.distance()
             # calculate the distance error, adjusted for displacement of the us sensor from wheelbase
-            distance_error = current_distance - distance_to_object + self.us_sensor_to_wheelbase_dist
+            distance_error = current_distance - distance_to_object #  + self.us_sensor_to_wheelbase_dist
 
             # Stop if within the acceptable range
             if abs(distance_error) <= 5:
@@ -171,17 +171,13 @@ class Robot:
             self.belt_motor.stop()
 
 
-    def stop(self):
-        self.left_motor.stop()
-        self.right_motor.stop()
-
     def drive(self, drive_distance, kp_gyro=1, ki_gyro = 0.0, aggressivity=0.01):
         self.drive_base.reset()
 
         angle_error_integral = 0
         while True:
             current_distance = self.drive_base.distance()
-            distance_error = drive_distance - current_distance
+            distance_error = (drive_distance - current_distance) * 11/10 # + self.us_sensor_to_wheelbase_dist (+ proporionality error fix const)
 
             # Stop if within the acceptable range
             if abs(distance_error) <= 5:
@@ -205,19 +201,23 @@ class Robot:
         # Stop the robot at the final position
         self.drive_base.stop()
 
- 
- 
+    def stop(self):
+        self.left_motor.stop()
+        self.right_motor.stop()
+    
 
 kratkazed=130
 
 robot = Robot(button_start=1, drift_fix=1)
 robot.collect(1)
-while 1:
-    robot.drive_until_obstacle(300)
-    print("going until 300")
-    robot.turn(-180)
-    print("turning -180")
-    robot.drive_until_obstacle(200)
-    print("going until 100")
-    robot.turn(180)
-    print("turning 180")
+# while 1:
+#     robot.drive_until_obstacle(300)
+#     print("going until 300")
+#     robot.turn(-180)
+#     print("turning -180")
+#     robot.drive_until_obstacle(200)
+#     print("going until 100")
+#     robot.turn(180)
+#     print("turning 180")
+
+robot.drive(200)
