@@ -87,7 +87,6 @@ class Robot:
         :param threshold: Error threshold to start applying corrections.
         :param k: Non-linear scaling factor for the correction.
         """
-        self.say("I'm turning " + str(added_angle))
 
         # Update the desired angle
         self.wanted_angle += added_angle
@@ -127,7 +126,6 @@ class Robot:
         :param max_speed: Maximum speed for driving.
         :param aggressivity: Aggressiveness for sigmoid smoothing.
         """
-        self.say("I'm going now!")
 
         angle_error_integral = 0 # sum all angle errors to approximate it's integral
         while True:
@@ -157,7 +155,7 @@ class Robot:
         # Stop the robot at the final position
         self.drive_base.stop()
 
-    def collect(self, run, speed=1000):
+    def collect(self, run):
         """
         Collect balls
         :param run: if you want to start collectiong the balls or not
