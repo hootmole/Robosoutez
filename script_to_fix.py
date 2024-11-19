@@ -178,7 +178,7 @@ class Robot:
     def drive(self, drive_distance, kp_gyro=1, ki_gyro = 0.0, aggressivity=0.02):
         self.drive_base.reset()
 
-
+        angle_error_integral = 0
         while True:
             current_distance = self.drive_base.distance()
             distance_error = drive_distance - current_distance
