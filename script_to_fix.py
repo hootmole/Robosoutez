@@ -9,12 +9,16 @@ from pybricks.media.ev3dev import SoundFile, ImageFile
 from pybricks.iodevices import ( AnalogSensor)
 
 import math
+from math import exp
 
 def sigmoid(error, max_speed, agressivity):
     """
-    sigmoid function for smooth speed correction handeling
+    Sigmoid function for smooth speed correction handeling
+    :param error: Error for nonlinear correction output
+    :param max_speed: The max and min correction value that's reached
+    :param agressivity: How aggresive is the easing, the lower the value the lower the easing agressivity (-4.0 to 4.0)
     """
-    return 2 * max_speed / (1 + math.e ** (-error * agressivity)) - max_speed
+    return 2 * max_speed / (1 + exp(-error * exp(agressivity))) - max_speed
 
  
 class Robot:
