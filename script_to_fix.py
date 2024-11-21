@@ -37,6 +37,8 @@ class Robot:
         self.axle_track = 120 # mm
         self.us_sensor_to_wheelbase_dist = 100 # mm
         self.belt_tube_dist = 215 # mm
+        self.ball_dist = 280 # mm ?
+        self.belt_wheel_radius = 50 # mm ?
 
         self.drive_base = DriveBase(self.left_motor, self.right_motor, self.wheel_diameter, self.axle_track)
         self.drive_base.settings(self.default_speed, straight_acceleration=self.default_speed * 2, 
@@ -45,7 +47,7 @@ class Robot:
         # wait until button is pressed if desired
         while (not self.button.pressed()) and button_start:
             wait(10)
-        self.say("I'm just getting started sir")
+        # self.say("I'm just getting started sir")
         # Drift fix
         if drift_fix == 2:
             while True:
@@ -155,19 +157,6 @@ class Robot:
         # Stop the robot at the final position
         self.drive_base.stop()
 
-    def collect(self, run):
-        """
-        Collect balls
-        :param run: if you want to start collectiong the balls or not
-        :param kp_gyro: Speed of the motor spin in deg/s
-        """
-        if run:
-            # Calculate belt speed
-            belt_angular_velocity = self.default_speed / self.wheel_diameter * (180 / math.pi) # deg/s
-            self.belt_motor.run(belt_angular_velocity)
-        else:
-            self.belt_motor.stop()
-
 
     def drive(self, drive_distance, kp_gyro=1, ki_gyro = 0.0, aggressivity=0.01):
         self.drive_base.reset()
@@ -202,6 +191,20 @@ class Robot:
     def stop(self):
         self.left_motor.stop()
         self.right_motor.stop()
+
+
+    def collect(self, run):
+        """
+        Collect balls
+        :param run: if you want to start collectiong the balls or not
+        :param kp_gyro: Speed of the motor spin in deg/s
+        """
+        if run:
+            # Calculate belt speed
+            belt_angular_velocity = (self.default_speed * self.belt_tube_dist) / (self.belt_wheel_radius * self.ball_dist) * (180 / math.pi) # deg/s
+            self.belt_motor.run(belt_angular_velocity)
+        else:
+            self.belt_motor.stop()
     
 
 kratkazed=130
