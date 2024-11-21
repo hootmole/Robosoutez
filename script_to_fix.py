@@ -37,7 +37,7 @@ class Robot:
         self.default_speed = 800 # mm/s
         self.min_correction_speed = 30 # mm/s
         self.default_turn_speed = 500
-        self.min_turn_correction_speed = 30 
+        self.min_turn_correction_speed = 20 
         self.wanted_angle = 0 # deg
 
         self.wheel_diameter = 52 # mm
@@ -45,7 +45,7 @@ class Robot:
         self.us_sensor_to_wheelbase_dist = 100 # mm
         self.belt_tube_dist = 215 # mm
         self.ball_dist = 280 # mm ?
-        self.belt_wheel_radius = 50 # mm ?
+        self.belt_wheel_radius = 20 # mm ?
 
         self.drive_base = DriveBase(self.left_motor, self.right_motor, self.wheel_diameter, self.axle_track)
         self.drive_base.settings(self.default_speed, straight_acceleration=self.default_speed * 2, 
@@ -88,7 +88,7 @@ class Robot:
     def say(self, text):
         self.speaker.say(text)
     
-    def turn(self, added_angle, aggresivity=-3):
+    def turn(self, added_angle, aggresivity=-4.5):
         """
         Turn the robot to the constant angle coordinates using non-linear deceleration.
         :param added_angle: Angle to add to the current desired angle (in degrees).
