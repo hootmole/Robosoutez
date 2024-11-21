@@ -35,9 +35,12 @@ class Robot:
         self.speaker = self.ev3_brick.speaker
 
         self.default_speed = 800 # mm/s
+        self.min_correction_speed = 30 # mm/s
         self.default_turn_speed = 500
-        self.wanted_angle = 0
-        self.wheel_diameter = 56 # mm
+        self.min_turn_correction_speed = 30 
+        self.wanted_angle = 0 # deg
+
+        self.wheel_diameter = 52 # mm
         self.axle_track = 120 # mm
         self.us_sensor_to_wheelbase_dist = 100 # mm
         self.belt_tube_dist = 215 # mm
@@ -51,7 +54,7 @@ class Robot:
         # wait until button is pressed if desired
         while (not self.button.pressed()) and button_start:
             wait(10)
-        # self.say("I'm just getting started sir")
+        self.say("Bismillahhh")
         # Drift fix
         if drift_fix == 2:
             while True:
@@ -85,7 +88,7 @@ class Robot:
     def say(self, text):
         self.speaker.say(text)
     
-    def turn(self, added_angle, aggresivity=0.04):
+    def turn(self, added_angle, aggresivity=-3):
         """
         Turn the robot to the constant angle coordinates using non-linear deceleration.
         :param added_angle: Angle to add to the current desired angle (in degrees).
@@ -94,21 +97,22 @@ class Robot:
 
         # Update the desired angle
         self.wanted_angle += added_angle
-        self.wanted_angle = self.wanted_angle % 360  # Wrap angle to [0, 360)
+        self.wanted_angle = self.wanted_angle# % 360  # Wrap angle to [0, 360)
 
         while True:
-            current_angle = self.gyro.angle() % 360  # Wrap current angle to [0, 360)
+            current_angle = self.gyro.angle()# % 360  # Wrap current angle to [0, 360)
             error = self.wanted_angle - current_angle
 
             # Adjust error for shortest turning path, subtract the value to adjust for shortest angle
-            if error > 180: error -= 360
-            elif error < -180: error += 360
+            # if error > 180: error -= 360
+            # elif error < -180: error += 360
 
             print("gyro:", current_angle, "  wanted:", self.wanted_angle, "  error:", error)
 
             # Calculate correction based on the sigmoid function
             correction = sigmoid(error, self.default_turn_speed, aggresivity)
-            correction = max(-self.default_turn_speed, min(self.default_turn_speed, correction))  # Clamp correction
+            if abs(correction) < self.min_correction_speed and correction != 0:
+                correction = correction / abs(correction) * self.min_correction_speed
             
             self.left_motor.run(correction)
             self.right_motor.run(-correction)
@@ -122,7 +126,7 @@ class Robot:
 
        
 
-    def drive_until_obstacle(self, distance_to_object, kp_gyro=1, ki_gyro=0.0, aggressivity=0.01):
+    def drive_until_obstacle(self, distance_to_object, kp_gyro=1, ki_gyro=0.0, aggressivity=-5):
         """
         Moves the robot straight toward a barrier and adjusts to the desired distance using ultrasonic and gyro feedback.
         :param distance_to_object: Desired distance from the obstacle in mm.
@@ -144,13 +148,15 @@ class Robot:
 
             # Calculate forward speed using sigmoid for distance error
             forward_speed = sigmoid(distance_error, self.default_speed, aggressivity)
+            if abs(forward_speed) < self.min_correction_speed and forward_speed != 0:
+                forward_speed = forward_speed / abs(forward_speed) * self.min_correction_speed
 
             # Gyro correction for rotational alignment
             angle_error = self.gyro.angle() - self.wanted_angle
             angle_error_integral += angle_error
             correction = kp_gyro * angle_error + ki_gyro * angle_error_integral
 
-            correction = correction * (self.default_speed / forward_speed) # scale down the correction when robot is moving slower
+            correction = correction * (forward_speed / self.default_speed) # scale down the correction when robot is moving slower
             # self.left_motor.run(forward_speed - correction)
             # self.right_motor.run(forward_speed + correction)
             self.drive_base.drive(forward_speed, -correction)
@@ -161,13 +167,13 @@ class Robot:
         self.drive_base.stop()
 
 
-    def drive(self, drive_distance, kp_gyro=1, ki_gyro = 0.0, aggressivity=0.01):
+    def drive(self, drive_distance, kp_gyro=1, ki_gyro = 0.0, aggressivity=-6):
         self.drive_base.reset()
 
         angle_error_integral = 0
         while True:
             current_distance = self.drive_base.distance()
-            distance_error = (drive_distance - current_distance) * 11/10 # + self.us_sensor_to_wheelbase_dist (+ proporionality error fix const)
+            distance_error = (drive_distance - current_distance) * 17/10 # + self.us_sensor_to_wheelbase_dist (+ proporionality error fix const)
 
             # Stop if within the acceptable range
             if abs(distance_error) <= 5:
@@ -175,13 +181,15 @@ class Robot:
 
             # Calculate forward speed using sigmoid for distance error
             forward_speed = sigmoid(distance_error, self.default_speed, aggressivity)
-
+            if abs(forward_speed) < self.min_correction_speed and forward_speed != 0:
+                forward_speed = forward_speed / abs(forward_speed) * self.min_correction_speed
+            
             # Gyro correction for rotational alignment
             angle_error = self.gyro.angle() - self.wanted_angle
             angle_error_integral += angle_error
             correction = kp_gyro * angle_error + ki_gyro * angle_error_integral
 
-            correction = correction * (self.default_speed / forward_speed) # scale down the correction when robot is moving slower
+            correction = correction * (forward_speed / self.default_speed) # scale down the correction when robot is moving slower
             # self.left_motor.run(forward_speed - correction)
             # self.right_motor.run(forward_speed + correction)
             self.drive_base.drive(forward_speed, -correction)
