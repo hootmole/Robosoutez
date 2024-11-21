@@ -209,19 +209,3 @@ class Robot:
         else:
             self.belt_motor.stop()
     
-
-kratkazed=130
-
-robot = Robot(button_start=1, drift_fix=1)
-robot.collect(1)
-# while 1:
-#     robot.drive_until_obstacle(300)
-#     print("going until 300")
-#     robot.turn(-180)
-#     print("turning -180")
-#     robot.drive_until_obstacle(200)
-#     print("going until 100")
-#     robot.turn(180)
-#     print("turning 180")
-
-robot.drive(200)
