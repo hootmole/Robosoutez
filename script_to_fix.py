@@ -89,36 +89,35 @@ class Robot:
         """
         Turn the robot to the constant angle coordinates using non-linear deceleration.
         :param added_angle: Angle to add to the current desired angle (in degrees).
-        :param kp: Proportional gain for the correction calculation.
-        :param threshold: Error threshold to start applying corrections.
-        :param k: Non-linear scaling factor for the correction.
+        :param aggresivity: Non-linear scaling factor for the correction.
         """
 
         # Update the desired angle
         self.wanted_angle += added_angle
-        self.wanted_angle = self.wanted_angle % 360  # Modulus to keep angles manageable
-        
-        while True:
-            error = self.wanted_angle - self.gyro.angle()
-            print("gyro:", self.gyro.angle, "  wanted:", self.wanted_angle)
+        self.wanted_angle = self.wanted_angle % 360  # Wrap angle to [0, 360)
 
-            # if abs(error) > self.turn_easing_threshold:
-            #     correction = sigmoid(error, self.default_turn_speed, aggresivity) # slowing the robot based on sigmoind function for faster and smoother operations
-            # else:
-            #     correction = kp * error  # Linear response for small errors
-            correction = sigmoid(error, self.default_turn_speed, aggresivity) # slowing the robot based on sigmoind function for faster and smoother operations
-            # Clamp correction to motor speed limits
-            correction = max(-self.default_turn_speed, min(self.default_turn_speed, correction))
-            
+        while True:
+            current_angle = self.gyro.angle() % 360  # Wrap current angle to [0, 360)
+            error = self.wanted_angle - current_angle
+
+            # Adjust error for shortest turning path, subtract the value to adjust for shortest angle
+            if error > 180: error -= 360
+            elif error < -180: error += 360
+
+            print("gyro:", current_angle, "  wanted:", self.wanted_angle, "  error:", error)
+
+            # Calculate correction based on the sigmoid function
+            correction = sigmoid(error, self.default_turn_speed, aggresivity)
+            correction = max(-self.default_turn_speed, min(self.default_turn_speed, correction))  # Clamp correction
             
             self.left_motor.run(correction)
             self.right_motor.run(-correction)
-            
-            if abs(error) < 1:
+
+            if abs(error) < 1:  # Threshold for stopping
                 break
 
             wait(10)  # Short delay for smooth operation
-            
+
         self.stop()
 
        
