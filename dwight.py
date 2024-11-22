@@ -73,6 +73,8 @@ class Robot:
                         break
                     self.gyro.reset_angle(0)
                     self.speaker.beep()
+                except Exception as e:
+                    continue
 
         if drift_fix == 1:
             self.gyro = GyroSensor(Port.S2)
