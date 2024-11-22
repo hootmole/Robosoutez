@@ -34,24 +34,26 @@ class Robot:
         self.ev3_brick = EV3Brick()
         self.speaker = self.ev3_brick.speaker
 
-        self.default_speed = 250 # mm/s
+        self.default_speed = 200 # mm/s
         self.min_correction_speed = 30 # mm/s
         self.default_turn_speed = 300
         self.min_turn_correction_speed = 20 
         self.wanted_angle = 0 # deg
-        self.time_accuracy = 50
+        self.time_accuracy = 25
 
         self.wheel_diameter = 56 # mm
         self.axle_track = 120 # mm
         self.us_sensor_to_wheelbase_dist = 100 # mm
-        self.belt_tube_dist = 215 # mm
-        self.ball_dist = 280 # mm ?
-        self.belt_wheel_radius = 20 # mm ?
+        self.belt_lenght = 565
+        self.belt_tube_dist = self.belt_lenght / 3
+        self.ball_dist = 280 # mm
+        self.belt_wheel_radius = 23 # mm
 
         self.drive_base = DriveBase(self.left_motor, self.right_motor, self.wheel_diameter, self.axle_track)
         self.drive_base.settings(self.default_speed, straight_acceleration=self.default_speed / 2, 
                                  turn_rate=self.default_turn_speed, turn_acceleration=self.default_turn_speed * 2)
 
+        print(self.ev3_brick.battery.voltage() / 1000, "V")
         # wait until button is pressed if desired
         while (not self.button.pressed()) and button_start:
             wait(10)
@@ -177,13 +179,13 @@ class Robot:
         self.drive_base.stop()
 
 
-    def drive(self, drive_distance, kp_gyro=5, aggressivity=-4):
+    def drive(self, drive_distance, kp_gyro=3, aggressivity=-4):
         self.drive_base.reset()
 
         correct_error_count = 0
         while True:
             current_distance = self.drive_base.distance()
-            distance_error = (drive_distance - current_distance) * 17/10 # + self.us_sensor_to_wheelbase_dist (+ proporionality error fix const)
+            distance_error = (drive_distance - current_distance) * 17/10 # + self.us_sensor_to_wheelbase_dist (+ proportionality error fix const)
 
             # Stop if within the acceptable range
             if abs(distance_error) <= 5:
@@ -204,9 +206,8 @@ class Robot:
             correction = kp_gyro * angle_error
 
             correction = correction * (forward_speed / self.default_speed) # scale down the correction when robot is moving slower
-            # self.left_motor.run(forward_speed - correction)
-            # self.right_motor.run(forward_speed + correction)
-            self.drive_base.drive(forward_speed, -correction)
+            correction = -correction * (abs(forward_speed) / forward_speed) if forward_speed != 0 else 0 # flip the correction orientation when going backwards
+            self.drive_base.drive(forward_speed, correction)
 
             wait(10)
 
@@ -224,32 +225,30 @@ class Robot:
         :param run: if you want to start collectiong the balls or not
         :param kp_gyro: Speed of the motor spin in deg/s
         """
+        gear_ratio = 1.9
+        self.belt_motor.reset_angle(0)
+        # 2850
+        belt_angular_velocity = (self.default_speed * self.belt_tube_dist) / (self.belt_wheel_radius * self.ball_dist) * (180 / math.pi) * gear_ratio # deg/s
+        
         if run:
             # Calculate belt speed
-            belt_angular_velocity = (self.default_speed * self.belt_tube_dist) / (self.belt_wheel_radius * self.ball_dist) * (180 / math.pi) # deg/s
             self.belt_motor.run(belt_angular_velocity)
         else:
-            self.belt_motor.stop()
-    
+            motor_rotations = self.belt_motor.angle()
+            turn_to_reset = (motor_rotations % 2850) + 2850
+            self.belt_motor.run_angle(belt_angular_velocity, turn_to_reset, wait=False)
 
-robot = Robot(button_start=1, drift_fix=1)
-ball_distance=robot.ball_dist
-robot.collect(1)
-robot.drive(ball_distance)
-robot.turn(-90)
-robot.drive(ball_distance*3)
-robot.turn(90)
-robot.drive(ball_distance+10)
-robot.turn(90)
-robot.drive(ball_distance*3)
-robot.turn(270)
-robot.drive(ball_distance)
-robot.turn(270)
-robot.drive(ball_distance*3)
-wait(1000)
-robot.drive(ball_distance/2-30)
-robot.drive(-ball_distance/2-30)
-robot.turn(180)
-robot.drive(ball_distance*3)
-robot.turn(180)
-robot.drive(ball_distance/2-30)
+    def Lcollect(self):
+        r_angle = 2850
+        self.belt_motor.run_angle(1500, r_angle, wait=True)
+
+    def to_ball(self, ds=0):
+        self.drive(self.ball_dist + ds)
+        wait(1000)
+        self.Lcollect()
+
+    def line_collect(self, ds=0, n=3):
+        self.collect(1)
+        self.drive(ball_distance * n + ds)
+        self.collect(0)
+    
