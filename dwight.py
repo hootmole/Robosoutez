@@ -61,17 +61,18 @@ class Robot:
         # Drift fix
         if drift_fix == 2:
             while True:
-                self.speaker.beep()
-                AnalogSensor(Port.S2)
-                self.speaker.beep()
-                wait(100)
-                self.gyro = GyroSensor(Port.S2)
-                self.speaker.beep()
-                
-                if self.gyro.speed() == 0:
-                    break
-                self.gyro.reset_angle(0)
-                self.speaker.beep()
+                try:
+                    self.speaker.beep()
+                    AnalogSensor(Port.S2)
+                    self.speaker.beep()
+                    wait(100)
+                    self.gyro = GyroSensor(Port.S2)
+                    self.speaker.beep()
+                    
+                    if self.gyro.speed() == 0:
+                        break
+                    self.gyro.reset_angle(0)
+                    self.speaker.beep()
 
         if drift_fix == 1:
             self.gyro = GyroSensor(Port.S2)
