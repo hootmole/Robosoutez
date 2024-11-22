@@ -242,13 +242,8 @@ class Robot:
         r_angle = 2850
         self.belt_motor.run_angle(1500, r_angle, wait=True)
 
-    def to_ball(self, ds=0):
-        self.drive(self.ball_dist + ds)
-        wait(1000)
-        self.Lcollect()
-
     def line_collect(self, ds=0, n=3):
         self.collect(1)
-        self.drive(ball_distance * n + ds)
+        self.drive(self.ball_dist * n + ds)
         self.collect(0)
     
