@@ -27,4 +27,3 @@ while True:
         # Wait until the sensor is released to avoid multiple triggers
         while touch_sensor.pressed():
             wait(10)  # Small delay to debounce the input
-má místní nabídku
